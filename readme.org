@@ -1,0 +1,5 @@
+* Collection of a few non trivial algorithms
+** Primes
+*** Linear Sieve
+https://www.cs.utexas.edu/users/misra/scannedPdf.dir/linearSieve.pdf
+Linear Sieve Segfaults for n > 1666680 (we reach a point where ~int~ is not sufficient for storing the numbers). I should be only using this implementation for numbers less than 10^6.
