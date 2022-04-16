@@ -9,5 +9,6 @@
 ** Graphs
 *** Minimum Spanning Tree
 **** [[https://en.wikipedia.org/wiki/Bor%C5%AFvka%27s_algorithm][Boruvka]]
-     
-     
+
+*** Depth first search
+  [[./dfs.org]]
