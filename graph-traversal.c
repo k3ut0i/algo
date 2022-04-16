@@ -64,6 +64,27 @@ void print_dfs_from(int n, int m, int* es, int s){
   fprintf(stdout, "\n");
   destroy_graph(g);
 }
+void print_bfs_from(int n, int m, int* es, int s){
+  struct graph* g = graph_from_edges(n, m, es, 0); // undirected
+  int queue[n], qs = 0, qe = 0, mark[n+1];
+  for(int i = 0; i <= n; i++) mark[i] = 0;
+  queue[qe++] = s;
+  while(qs < qe){
+    int cnode = queue[qs++]; // pop queue
+    if(!mark[cnode]){
+      il_t ns = g->adjacency_list[cnode];
+      mark[cnode] = 1;
+      fprintf(stdout, "%d ", cnode);
+      while(ns!=NULL) {
+	if(!mark[ns->car]) queue[qe++] = ns->car; // push queue
+	ns = ns->cdr;
+      }
+    }
+  }
+  fprintf(stdout, "\n");
+  destroy_graph(g);
+}
+
 int main(int argc, char* argv[]){
   if(argc != 2) {
     fprintf(stderr, "Usage: %s <node number>\n", argv[0]);
@@ -77,5 +98,6 @@ int main(int argc, char* argv[]){
   for(int i = 0; i < nedges; i++)
     fscanf(stdin, "%d %d %d", &edges[2*i], &edges[2*i+1], &tmp);
   print_dfs_from(nnodes, nedges, edges, source_node);
+  print_bfs_from(nnodes, nedges, edges, source_node);
   return 0;
 }
