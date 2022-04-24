@@ -1,5 +1,5 @@
-* Graph Traversal
-** BFS
+* Graph Traversal                                                     :graph:
+** BFS                                                                  :bfs:
 Breadth first search.
 #+name: bfs
 #+begin_src c
@@ -25,7 +25,7 @@ Breadth first search.
   }
 
 #+end_src
-** DFS
+** DFS                                                                  :dfs:
 Depth first search.
 #+name: dfs
 #+begin_src c
@@ -52,7 +52,7 @@ Depth first search.
   }
 #+end_src
 
-** Data Structures
+** Data Structures                                      :list:adjacency_list:
 #+name: list
 #+begin_src c
   typedef struct il{

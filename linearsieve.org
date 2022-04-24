@@ -1,0 +1,235 @@
+#+TITLE: A linear sieve algorithm
+* Linear Sieve
+Source: [[https://www.cs.utexas.edu/users/misra/scannedPdf.dir/linearSieve.pdf][David Gries, Jayadev Misra - A Linear Sieve Algorithm for Finding Prime Numbers]]
+
+The following version gives smallest prime factor for each number less than ~N~. 
+#+name: sieve-algo
+#+begin_src lisp
+(defun linear-sieve (n)
+  (flet ((next (a i)
+           (do ((j (1+ i) (1+ j)))
+               ((or (= j (array-dimension a 0))
+                    (= j (aref a j)))
+                j))))
+    (let ((a (make-array (1+ n) :element-type 'fixnum)))
+      (do ((i 0 (1+ i)))
+          ((> i n))
+        (setf (aref a i) i))
+      (do ((p-i 2 (next a p-i)))
+           ((> (* (aref a p-i) (aref a p-i)) n) a)
+        (do ((q-i 2 (next a q-i)))
+            ((> (* (aref a p-i) (aref a q-i)) n) a)
+          (let ((p (aref a p-i))
+                (q (aref a q-i)))
+            (do ((x (* p q) (* x p)))
+                ((> x n))
+              (setf (aref a x) p))))))))
+#+end_src
+
+** Smallest prime factor
+Let us see this in action.
+#+name: test-sieve-algo
+#+begin_src lisp :noweb strip-export :exports both :cache yes
+<<sieve-algo>>
+(linear-sieve 20)
+#+end_src
+
+#+RESULTS[fa9fb43f6488be1756d31b6c4eb2ad70d3248d14]: test-sieve-algo
+| 0 | 1 | 2 | 3 | 2 | 5 | 3 | 7 | 2 | 3 | 2 | 11 | 2 | 13 | 2 | 3 | 2 | 17 | 3 | 19 | 2 |
+
+** Primes
+If you just want primes, we can filter the indices with ~(lamda (i) (= i (aref a i)))~ where ~a~ is the return of the array.
+
+#+name: test-sieve-primes
+#+begin_src lisp :noweb strip-export :exports both :results output :cache yes
+(let* ((n 20)
+       (a (linear-sieve n)))
+  (dotimes (i (1+ n))
+    (when (= i (aref a i))
+      (format t "~D " i))))
+#+end_src
+
+#+RESULTS[bc9c99e8338d6218a5e2ba1bd164de1f5c7216e6]: test-sieve-primes
+: 0 1 2 3 5 7 11 13 17 19 
+
+* Prime Factorization
+Now I want to use the above process to find prime factorization of the number, and from the prime factorization, all the divisors of a number.
+#+name: prime-fact
+#+begin_src lisp
+(defun prime-fact (n s)
+  "Prime factorizations of all numbers upto N,
+S is an array of smallest prime factor for each numer."
+  (flet ((exp-of (a p)
+           "Exponent of P in factorization of A."
+           (do ((x 1 (* p x))
+                (k 0 (1+ k)))
+               ((> (mod a (* x p)) 0) x k))))
+    (let ((a (make-array (1+ n) :initial-element nil :element-type 'list)))
+      (setf (aref a 0) '((1 . 1)))
+      (setf (aref a 1) '((1 . 1)))
+      (do ((i 2 (1+ i)))
+          ((> i n) a)
+        (do ((x i)
+             (ps '()))
+            ((= x 1) (setf (aref a i) ps))
+          (let* ((p (aref s x))
+                 (k (exp-of x p)))
+            (setf x (/ x (expt p k)))
+            (setf ps (cons (cons p k) ps))))))))
+#+end_src
+
+An example:
+#+name: test-prime-fact
+#+begin_src lisp :noweb strip-export :exports both :results output :cache yes
+<<sieve-algo>>
+<<prime-fact>>
+(let* ((n 20)
+       (s (linear-sieve n)))
+  (mapc (lambda (ps) (format t "~{~A~^, ~}~%" ps))
+        (coerce (prime-fact n s) 'list)))
+#+end_src
+
+#+RESULTS[f7c3b88d24e9c4a15e62e110ccadd2fa4ee4d6d6]: test-prime-fact
+#+begin_example
+
+(1 . 1)
+(2 . 1)
+(3 . 1)
+(2 . 2)
+(5 . 1)
+(2 . 1), (3 . 1)
+(7 . 1)
+(2 . 3)
+(3 . 2)
+(5 . 1), (2 . 1)
+(11 . 1)
+(3 . 1), (2 . 2)
+(13 . 1)
+(7 . 1), (2 . 1)
+(5 . 1), (3 . 1)
+(2 . 4)
+(17 . 1)
+(2 . 1), (3 . 2)
+(19 . 1)
+(5 . 1), (2 . 2)
+#+end_example
+
+* All Divisors
+This is a helper function to enumerate all possible divisors when the prime factorization is given. It iterates over all possible choices for exponents in the prime factorization.
+#+name: diff-base-counter
+#+begin_src lisp
+(defun counter (a f)
+  (labels ((sub! (b i)
+             (if (>= i (array-dimension b 0))
+                 (throw 'sub-end nil)
+                 (if (> (aref b i) 0)
+                     (decf (aref b i))
+                     (progn (setf (aref b i) (aref a i))
+                            (sub! b (1+ i))))))
+           (all-zero (b) (= 0 (reduce #'+ b))))
+    (let ((b (make-array (array-dimensions a) :initial-contents a)))
+      (catch 'sub-end
+        (loop :do (progn
+                    (funcall f b)
+                    (sub! b 0)))))))
+#+end_src
+
+#+name: test-diff-base-counter
+#+begin_src lisp :noweb strip-export :exports both :results output :cache yes
+<<diff-base-counter>>
+(counter (make-array 3 :initial-contents '(1 3 1))
+         (lambda (a) (format t "~A~%" a)))
+#+end_src
+
+#+RESULTS[dc669aea2da32b35ab0a5496a870dbeb78d369f2]: test-diff-base-counter
+#+begin_example
+#(1 3 1)
+#(0 3 1)
+#(1 2 1)
+#(0 2 1)
+#(1 1 1)
+#(0 1 1)
+#(1 0 1)
+#(0 0 1)
+#(1 3 0)
+#(0 3 0)
+#(1 2 0)
+#(0 2 0)
+#(1 1 0)
+#(0 1 0)
+#(1 0 0)
+#(0 0 0)
+#+end_example
+
+Now onto the actual enumeration of divisors.
+#+name: all-div-pf
+#+begin_src lisp
+(defun all-div-pf (pf)
+  "All divisors of a number with PF as prime factorization."
+  (let* ((n (length pf))
+         (es (make-array n :initial-contents (mapcar #'cdr pf)))
+         (ps (make-array n :initial-contents (mapcar #'car pf)))
+         result)
+    (counter es (lambda (a)
+                  (let ((num 1))
+                    (dotimes (i n)
+                      (setf num (* num (expt (aref ps i) (aref a i)))))
+                    (setf result (cons num result)))))
+    result))
+#+end_src
+
+#+name: test-all-div-pdf
+#+begin_src lisp :noweb strip-export :exports both :cache yes
+<<diff-base-counter>>
+<<all-div-pf>>
+(all-div-pf '((2 . 2) (3 . 1) (5 . 1)))
+#+end_src
+
+#+RESULTS[2a3642e72adbe1bd0ef3c5bedeeb166e18fc5c1a]: test-all-div-pdf
+| 1 | 2 | 4 | 3 | 6 | 12 | 5 | 10 | 20 | 15 | 30 | 60 |
+
+Putting it all together.
+#+name: all-div-below-n
+#+begin_src lisp
+(defun all-div (n)
+  (let* ((s (linear-sieve n))
+         (pf (prime-fact n s)))
+    (dotimes (i (1+ n))
+      (let ((pf (aref pf i)))
+        (format t "~D: ~{~D~^ ~}~%" i (all-div-pf pf))))))
+#+end_src
+
+#+name: test-all-div-below-n
+#+begin_src lisp :noweb strip-export :exports both :results output :cache yes
+<<linearseive>>
+<<prime-fact>>
+<<diff-base-counter>>
+<<all-div-pf>>
+<<all-div-below-n>>
+(all-div 20)
+#+end_src
+
+#+RESULTS[c39461ad05f6f3f21963849f339851769e902487]: test-all-div-below-n
+#+begin_example
+0: 1 1
+1: 1 1
+2: 1 2
+3: 1 3
+4: 1 2 4
+5: 1 5
+6: 1 2 3 6
+7: 1 7
+8: 1 2 4 8
+9: 1 3 9
+10: 1 5 2 10
+11: 1 11
+12: 1 3 2 6 4 12
+13: 1 13
+14: 1 7 2 14
+15: 1 5 3 15
+16: 1 2 4 8 16
+17: 1 17
+18: 1 2 3 6 9 18
+19: 1 19
+20: 1 5 2 10 4 20
+#+end_example
