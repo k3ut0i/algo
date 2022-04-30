@@ -1,0 +1,114 @@
+* TODO Fenwick Tree
+https://en.wikipedia.org/wiki/Fenwick_tree
+
+Fenwick Tree is a tree containing partial sums of a given array a_1, ..., a_n. It can be used to get a fast O(log n) update on the array and prefix sums.
+** Implementation
+:PROPERTIES:
+:header-args: :noweb-ref fenwick-tree
+:END:
+n has 2^i then (complement n) has 1+...+2^(i-1), thus (-n) twos-complemnt has 2^i again. Thus bitwise and of n and -n will give the least power of 2 in the binary sum of n.
+
+#+begin_src lisp
+(defun lsb-exp (n)
+  "Return the least sum of 2 power in N.
+If N = 2^i + 2^j+... written in ascending order, then return 2^i."
+  (logand n (- n)))
+#+end_src
+
+We will be just using the array implicitly to denote the tree. Nodes from the root are 1, 2, 4, ..., 2^n. Each node 2^k has again children 1, 2, ..., 2^(k-1) and so on.
+#+begin_src lisp
+(defstruct fenwick-tree
+  array)
+
+(defun create-fenwick-tree (a)
+  "Convert the array A into a Fenwick Tree."
+  (dotimes (i (array-dimension a 0) (make-fenwick-tree :array a))
+    (let ((prev-nums (lsb-exp (1+ i))))
+      (let ((num (loop :with n = (floor prev-nums 2)
+                       :while(> n 0)
+                       :sum (aref a (- i n))
+                       :do (setf n (floor n 2)))))
+        (incf (aref a i) num)))))
+#+end_src
+
+#+begin_src lisp
+(defun ft-update (ft i x)
+  "Increase the I th element of array represented by FT by X."
+  (do ((n (1+ i) (+ n (lsb-exp n))))
+      ((> n (array-dimension (fenwick-tree-array ft) 0)) ft)
+    (incf (aref (fenwick-tree-array ft) (1- n)) x)))
+#+end_src
+
+#+begin_src lisp
+(defun ft-sum (ft i)
+  "Prefix sum upto I inclusive of the array represented by FT."
+  (loop :with n = (1+ i)
+        :while (> n 0)
+        :sum (aref (fenwick-tree-array ft) (1- n))
+        :do (decf n (lsb-exp n))))
+#+end_src
+
+** Testing
+#+name: lsb-test
+#+begin_src lisp :noweb strip-export
+<<fenwick-tree>>
+(loop :for i :from 0 :upto 16 :collect (lsb-exp i))
+#+end_src
+
+#+RESULTS: lsb-test
+| 0 | 1 | 2 | 1 | 4 | 1 | 2 | 1 | 8 | 1 | 2 | 1 | 4 | 1 | 2 | 1 | 16 |
+
+Create a random array of random length (100 - 1000) and check the prefix sums.
+#+name: fenwick-tree-test
+#+begin_src lisp :noweb strip-export
+<<fenwick-tree>>
+(let* ((n 10) ;; 100 - 1000
+       (a (make-array n :initial-contents (loop :for i :from 0 :below n
+                                                :collect (1+ i))))
+       (ca (make-array n))
+       (q 10)) ;; 10 - 100 updates
+  (setf (aref ca 0) (aref a 0))
+  (do ((i 1 (1+ i)))
+      ((= i n))
+    (setf (aref ca i) (+ (aref a i) (aref ca (1- i)))))
+  (let ((ft (create-fenwick-tree a)))
+    (dotimes (i n :passed)
+      (assert (= (ft-sum ft i) (aref ca i))))
+    (dotimes (i q t)
+      (let ((idx (random n))
+            (up-val 1))
+        (loop :for j :from idx :below n :do (incf (aref ca j) up-val))
+        (ft-update ft idx up-val)))
+    (list ca
+          (loop :for j :from 0 :below n :collect (ft-sum ft j)))))
+#+end_src
+
+#+RESULTS: fenwick-tree-test
+| 5 | 8 | 12 | 16 | 22 | 29 | 36 | 44 | 55 | 65 |
+| 5 | 8 | 12 | 16 | 22 | 29 | 36 | 44 | 55 | 65 |
+
+#+name: efficiency-test
+#+begin_src lisp :noweb strip-export :results output replace :exports both
+<<fenwick-tree>>
+(let* ((n 100000)
+       (q 10000)
+       (a (make-array n))
+       (*trace-output* *standard-output*))
+  (dotimes (i n)
+    (setf (aref a i) (random n)))
+  (let ((ft (create-fenwick-tree a)))
+    (time (dotimes (i q)
+            (ft-update ft (random n) (random n))))))
+#+end_src
+
+#+RESULTS: efficiency-test
+: Evaluation took:
+:   0.003 seconds of real time
+:   0.002564 seconds of total run time (0.002564 user, 0.000000 system)
+:   100.00% CPU
+:   6,675,344 processor cycles
+:   0 bytes consed
+:   
+
+** C - Implementation
+TODO:

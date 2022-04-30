@@ -13,3 +13,7 @@
 
 *** Traversal                                                       :dfs:bfs:
   [[./graph-traversal.org]]
+
+** Trees
+*** Fenwick Tree                                                      :array:
+A [[file:fenwick-tree.org][data structure]] for O(log n) prefix sums and updates of a array.
