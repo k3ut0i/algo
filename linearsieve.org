@@ -200,8 +200,8 @@ Putting it all together.
 #+end_src
 
 #+name: test-all-div-below-n
-#+begin_src lisp :noweb strip-export :exports both :results output :cache yes
-<<linearseive>>
+#+begin_src lisp :noweb strip-export :exports both :results output :cache yes :tangle yes
+<<sieve-algo>>
 <<prime-fact>>
 <<diff-base-counter>>
 <<all-div-pf>>
