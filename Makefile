@@ -1,4 +1,4 @@
-CFLAGS = -Wall -Wextra -ggdb -pg
+CFLAGS = -Wall -Wextra -ggdb -pg --coverage
 LIBS = -lm
 .PHONY: clean all
 

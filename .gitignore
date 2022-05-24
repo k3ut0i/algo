@@ -6,3 +6,6 @@ gmon.out
 *.fasl
 *.o
 *.hi
+*.gcda
+*.gcov
+*.gcno

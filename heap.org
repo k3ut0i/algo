@@ -1,0 +1,115 @@
+* Heap Data Structure
+https://en.wikipedia.org/wiki/Heap_(data_structure)
+A heap is a specialized tree-based data structure which is essentially an almost complete tree that satisfies the heap property:
+- In a max heap, for any given node C, if P is a parent node of C, then the key (the value) of P is greater than or equal to the key of C.
+- In a min heap, the key of P is less than or equal to the key of C.
+
+The node at the "top" of the heap (with no parents) is called the root node. 
+
+** Binary Heap
+https://en.wikipedia.org/wiki/Binary_heap
+A binary heap is a heap data structure that takes form of a binary tree.
+A binary heap is defined as a binary tree with two additional constraints:
+- *Shape property*: a binary heap is a complete binary tree; that is, all levels of the tree, except possibly the last one (deepest) are fully filled, and, if the last level of the tree is not complete, the nodes of that level are filled from left to right.
+- *Heap property*: the key stored in each node is either greater than or equal to (≥) or less than or equal to (≤) the keys in the node's children, according to some total order.
+
+*** C - Implementation
+:PROPERTIES:
+:header-args: :noweb-ref binary-heap-c-impl
+:END:
+
+Structure is an array with total size and end pointer.
+#+begin_src c
+typedef int data_t;
+typedef int(*cmp_fn_t)(data_t, data_t);
+
+typedef struct binary_heap{
+  int end; // array end pos
+  int size; // total size of the underlying array
+  data_t* data;
+  cmp_fn_t cmp;
+} *bh_t;
+
+bh_t bh_new(int size, cmp_fn_t fn){
+  bh_t h = malloc(sizeof(*h));
+  h->end = 0, h->size = size, h->data = malloc(sizeof(data_t)*size), h->cmp = fn;
+  return h;
+}
+
+void bh_destroy(bh_t h){
+  free(h->data);
+  free(h);
+}
+#+end_src
+
+Index operations to figure out the parent and children of a particular node. These do not take any boundary conditions into account. When using them, always check if parent is not asked for 0, and that children are below ~end~.
+#+begin_src c
+#define parent(i) (((i)-1)/2)
+#define child_left(i) (2*(i)+1)
+#define child_right(i) (2*(i+1))
+#+end_src
+
+Swap operation.
+#+begin_src c
+#define swap(X, Y) { typeof(X) tmp = X; X = Y, Y = tmp; }
+#+end_src
+
+Insert operation. Assuming the size of the array initially allocated is sufficient.
+#+begin_src c
+void bh_insert(bh_t h, data_t d){
+  int i = h->end++;
+  h->data[i] = d;
+  while(i != 0 && !h->cmp(h->data[parent(i)], h->data[i])){
+    swap(h->data[parent(i)], h->data[i]);
+    i = parent(i);
+  }
+}
+#+end_src
+
+
+Extract operation. Remove the top element in the heap and reorganize the heap.
+#+begin_src c
+data_t bh_extract(bh_t h){
+  data_t r = h->data[0];
+  h->data[0] = h->data[--h->end];
+  int i = 0;
+  int cl = h->cmp(h->data[i], h->data[child_left(i)]),
+    cr = h->cmp(h->data[i], h->data[child_right(i)]);
+  while(!(cl && cr)) {
+    int ip = i;
+    if(cl && !cr) i = child_right(i);
+    else if(!cl && cr) i = child_left(i);
+    else
+      i = h->cmp(h->data[child_left(i)], h->data[child_right(i)]) ?
+        child_left(i) : child_right(i);
+    if(i >= h->end) break;
+    swap(h->data[i], h->data[ip]);
+    cl = h->cmp(h->data[i], h->data[child_left(i)]),
+      cr = h->cmp(h->data[i], h->data[child_right(i)]);
+  }
+  return r;
+}
+#+end_src
+
+*** Test C Implementation
+#+name: test-binary-heap
+#+begin_src c :noweb strip-export :tangle test-binary-heap.c 
+#include<stdio.h>
+#include<stdlib.h>
+
+int int_cmp(int a, int b){
+  if(a >= b) return 1;
+  else return 0;
+}
+
+<<binary-heap-c-impl>>
+
+int main(){
+  bh_t h = bh_new(10, int_cmp);
+  int a[] = {9, 4, 2, 7, 1, 0, 8, 3, 6, 5};
+  for(int i = 0; i < 10; i++) bh_insert(h, a[i]);
+  for(int i = 0; i < 10; i++) fprintf(stdout, "%d ", bh_extract(h));
+  bh_destroy(h);
+  return 0;
+}
+#+end_src
