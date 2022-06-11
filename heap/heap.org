@@ -1,0 +1,284 @@
+* Heap Data Structure
+https://en.wikipedia.org/wiki/Heap_(data_structure)
+A heap is a specialized tree-based data structure which is essentially an almost complete tree that satisfies the heap property:
+- In a max heap, for any given node C, if P is a parent node of C, then the key (the value) of P is greater than or equal to the key of C.
+- In a min heap, the key of P is less than or equal to the key of C.
+
+The node at the "top" of the heap (with no parents) is called the root node. 
+
+** Binary Heap
+https://en.wikipedia.org/wiki/Binary_heap
+A binary heap is a heap data structure that takes form of a binary tree.
+A binary heap is defined as a binary tree with two additional constraints:
+- *Shape property*: a binary heap is a complete binary tree; that is, all levels of the tree, except possibly the last one (deepest) are fully filled, and, if the last level of the tree is not complete, the nodes of that level are filled from left to right.
+- *Heap property*: the key stored in each node is either greater than or equal to (≥) or less than or equal to (≤) the keys in the node's children, according to some total order.
+
+*** C - Implementation
+:PROPERTIES:
+:header-args: :noweb-ref binary-heap-c-impl
+:END:
+
+Structure is an array with total size and end pointer.
+#+begin_src c
+typedef int data_t;
+typedef int(*cmp_fn_t)(data_t, data_t);
+
+typedef struct binary_heap{
+  int end; // array end pos
+  int size; // total size of the underlying array
+  data_t* data;
+  cmp_fn_t cmp;
+} *bh_t;
+
+bh_t bh_new(int size, cmp_fn_t fn){
+  bh_t h = malloc(sizeof(*h));
+  h->end = 0, h->size = size, h->data = malloc(sizeof(data_t)*size), h->cmp = fn;
+  return h;
+}
+
+void bh_destroy(bh_t h){
+  free(h->data);
+  free(h);
+}
+#+end_src
+
+Index operations to figure out the parent and children of a particular node. These do not take any boundary conditions into account. When using them, always check if parent is not asked for 0, and that children are below ~end~.
+#+begin_src c
+#define parent(i) (((i)-1)/2)
+#define child_left(i) (2*(i)+1)
+#define child_right(i) (2*(i+1))
+#+end_src
+
+Swap operation.
+#+begin_src c
+#define swap(X, Y) { typeof(X) tmp = X; X = Y, Y = tmp; }
+#+end_src
+
+Insert operation. Assuming the size of the array initially allocated is sufficient.
+#+begin_src c
+void bh_insert(bh_t h, data_t d){
+  int i = h->end++;
+  h->data[i] = d;
+  while(i != 0 && !h->cmp(h->data[parent(i)], h->data[i])){
+    swap(h->data[parent(i)], h->data[i]);
+    i = parent(i);
+  }
+}
+#+end_src
+
+
+Extract operation. Remove the top element in the heap and reorganize the heap.
+#+begin_src c
+data_t bh_extract(bh_t h){
+  data_t r = h->data[0];
+  h->data[0] = h->data[--h->end];
+  int i = 0, ip = -1;
+  while(i != ip) {
+    ip = i; int cl = child_left(i), cr = child_right(i);
+    if(cl < h->end && !h->cmp(h->data[i], h->data[cl])) i = cl;
+    if(cr < h->end && !h->cmp(h->data[i], h->data[cr])) i = cr;
+    if (i != ip) swap(h->data[i], h->data[ip]);
+  }
+  return r;
+}
+#+end_src
+
+Delete operation.
+#+begin_src c
+void bh_delete(bh_t h, data_t d){
+  
+}
+#+end_src
+
+*** Test C Implementation
+#+name: test-binary-heap
+#+begin_src c :noweb strip-export :tangle test-binary-heap.c 
+#include<stdio.h>
+#include<stdlib.h>
+
+int int_cmp(int a, int b){
+  if(a >= b) return 1;
+  else return 0;
+}
+
+<<binary-heap-c-impl>>
+
+int main(){
+  bh_t h = bh_new(10, int_cmp);
+  int a[] = {9, 4, 2, 7, 1, 0, 8, 3, 6, 5};
+  for(int i = 0; i < 10; i++) bh_insert(h, a[i]);
+  for(int i = 0; i < 10; i++) fprintf(stdout, "%d ", bh_extract(h));
+  bh_destroy(h);
+  return 0;
+}
+#+end_src
+
+*** Haskell - Implementation
+
+**** Immutable version
+:PROPERTIES:
+:header-args: :noweb-ref hs-heap-im
+:END:
+The data structure is the underlying array container and the actual size of the heap in it. We can add functionality to change the array size, but in most of my uses we can estimate the upper bound of the size and use that fixed size instead.
+#+begin_src haskell
+data PQ a = PQ { dataArray :: Array Int a
+               , size :: Int }
+#+end_src
+
+#+begin_src haskell
+mkPQ :: Int -> a -> PQ a
+mkPQ size e = PQ (listArray (0, size-1) $ repeat e) 0
+
+--mkPQdef :: (Default a) => Int -> PQ a
+--mkPQdef size = PQ (listArray (0, size-1) $ repeat def) 0
+
+parent i = div (i-1) 2
+childL i = 2*i+1
+childR i = 2*i+2
+#+end_src
+
+#+begin_src haskell
+upHeap :: (Ord a) => Array Int a -> Int -> Array Int a
+upHeap a 0 = a
+upHeap a i = let ip = parent i; e = a!i; ep = a!ip in
+               if e > ep
+               then upHeap (a//[(i, ep), (ip, e)]) ip
+               else a
+
+downHeap :: (Ord a) => Array Int a -> Int -> Int -> Array Int a
+downHeap a s i = let il = childL i
+                     ir = childR i
+                     mi = foldl (f a s) i [il, ir]
+                 in
+                   if mi == i
+                   then a
+                   else downHeap (a//[(i, a!mi), (mi, a!i)]) s mi
+  where f a s im i | i >= s = im
+                   | a!i < a!im = im
+                   | otherwise = i
+#+end_src
+
+Insertion and Extraction; heavylifting is done by ~upHeap~ and ~downHeap~ above.
+#+begin_src haskell
+insertPQ :: (Ord a) => PQ a -> a -> PQ a
+insertPQ (PQ a s) e = let an = a//[(s, e)] in
+                        PQ (upHeap an s) (s+1)
+
+extractPQ :: (Ord a) => PQ a -> Maybe (a, PQ a)
+extractPQ (PQ _ 0) = Nothing
+extractPQ (PQ a s) = let top = a!0
+                         sn  = s-1
+                         an  = a//[(0, a!sn)]
+                     in
+                       Just (top, PQ (downHeap an sn 0) sn)
+#+end_src
+
+A good use of ~unfoldr~. The last time I used it was a variant of getting bits out of a number.
+#+begin_src haskell
+heapSort :: (Ord a) => [a] -> [a]
+heapSort [] = []
+heapSort xs@(x:_) = let len = length xs
+                        pq = foldl insertPQ (mkPQ len x) xs
+                    in unfoldr extractPQ pq
+#+end_src
+
+**** ST version
+:PROPERTIES:
+:header-args: :noweb-ref hs-heap-st
+:END:
+#+begin_src haskell 
+data PQ s a = PQ { dataArray :: STArray s Int a, size :: Int}
+#+end_src
+
+#+begin_src haskell
+mkPQ :: Int -> a -> ST s (PQ s a)
+mkPQ size e = newArray (0, size-1) e >>= return . flip PQ 0
+
+parent i = div (i-1) 2
+childL i = 2*i+1
+childR i = 2*i+2
+#+end_src
+
+#+begin_src haskell
+upHeap :: (Ord a) => STArray s Int a -> Int -> ST s (STArray s Int a)
+upHeap a 0 = return a
+upHeap a i = readArray a i >>=
+             \e -> readArray a (parent i) >>=
+             \ep -> if e > ep
+                    then writeArray a i ep >>
+                         writeArray a (parent i) e >>
+                         upHeap a (parent i)
+                    else return a
+
+downHeap :: (Ord a) => STArray s Int a -> Int -> Int -> ST s (STArray s Int a)
+downHeap a s i = let il = childL i
+                     ir = childR i
+                 in
+                   foldM (f a s) i [il, ir] >>=
+                   \mi -> if mi == i
+                          then return a
+                          else readArray a i >>=
+                               \e -> readArray a mi >>=
+                               \me -> writeArray a i me >>
+                                      writeArray a mi e >>
+                                      downHeap a s mi
+  where f a s im i | i >= s = return im
+                   | otherwise = readArray a im >>=
+                                 \em -> readArray a i >>=
+                                 \e -> return $ if (e > em) then i else im
+#+end_src
+
+#+begin_src haskell
+insertPQ :: (Ord a) => PQ s a -> a -> ST s (PQ s a)
+insertPQ (PQ a s) e = writeArray a s e >> upHeap a s >>= return . flip PQ (s+1)
+
+extractPQ :: (Ord a) => PQ s a -> ST s (Maybe (a, PQ s a))
+extractPQ (PQ a 0) = return Nothing
+extractPQ (PQ a s) = readArray a 0 >>=
+                     \top -> readArray a (s-1)  >>=
+                     \laste -> writeArray a 0 laste >>
+                     downHeap a (s-1) 0 >>= \an -> return (Just (top, PQ an (s-1)))
+#+end_src
+
+Same as immutable version, but unfoldM is not available by default. Will it be efficient if written iteratively?
+#+begin_src haskell
+heapSort :: (Ord a) => [a] -> [a]
+heapSort [] = []
+heapSort xs = runST $ let len = length xs in
+                        mkPQ len (head xs) >>=
+                        \pq -> foldM insertPQ pq xs >>=
+                        unfoldM extractPQ
+  where unfoldM f x = f x >>= \a -> case a of
+                                      Nothing -> return []
+                                      Just(e, x1) -> (e:) <$> unfoldM f x1
+#+end_src
+**** Test
+This part is common for all variants
+#+name: test-fn
+#+begin_src haskell
+main =
+  -- verboseCheck testHeap
+  quickCheck testHeap
+
+testHeap :: [Int] -> Bool
+testHeap xs = heapSort xs == reverse (sort xs)
+#+end_src
+
+Imports
+#+begin_src haskell :noweb strip-export :tangle haskell_heap_im.hs
+import Data.Array
+import Data.List (sort, unfoldr)
+import Test.QuickCheck
+<<hs-heap-im>>
+<<test-fn>>
+#+end_src
+
+#+begin_src haskell :noweb strip-export :tangle haskell_heap_st.hs
+import Data.Array.ST
+import Data.List (sort)
+import Control.Monad (foldM)
+import Control.Monad.ST (ST, runST)
+import Test.QuickCheck
+<<hs-heap-st>>
+<<test-fn>>
+#+end_src

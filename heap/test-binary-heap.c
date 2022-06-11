@@ -41,22 +41,17 @@ void bh_insert(bh_t h, data_t d){
 data_t bh_extract(bh_t h){
   data_t r = h->data[0];
   h->data[0] = h->data[--h->end];
-  int i = 0;
-  int cl = h->cmp(h->data[i], h->data[child_left(i)]),
-    cr = h->cmp(h->data[i], h->data[child_right(i)]);
-  while(!(cl && cr)) {
-    int ip = i;
-    if(cl && !cr) i = child_right(i);
-    else if(!cl && cr) i = child_left(i);
-    else
-      i = h->cmp(h->data[child_left(i)], h->data[child_right(i)]) ?
-        child_left(i) : child_right(i);
-    if(i >= h->end) break;
-    swap(h->data[i], h->data[ip]);
-    cl = h->cmp(h->data[i], h->data[child_left(i)]),
-      cr = h->cmp(h->data[i], h->data[child_right(i)]);
+  int i = 0, ip = -1;
+  while(i != ip) {
+    ip = i; int cl = child_left(i), cr = child_right(i);
+    if(cl < h->end && !h->cmp(h->data[i], h->data[cl])) i = cl;
+    if(cr < h->end && !h->cmp(h->data[i], h->data[cr])) i = cr;
+    if (i != ip) swap(h->data[i], h->data[ip]);
   }
   return r;
+}
+void bh_delete(bh_t h, data_t d){
+  
 }
 
 int main(){
