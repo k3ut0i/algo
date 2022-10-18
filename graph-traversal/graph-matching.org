@@ -1,0 +1,41 @@
+* Matching                                                   :graph:matching:
+https://en.wikipedia.org/wiki/Matching_(graph_theory)
+#+begin_quote
+A /matching/ or /independent edge set/ in an undirected graph is a set of edges without any common vertices.
+#+end_quote
+
+#+begin_quote
+A /maximal matching/ is a matching M of G which is not a subset of any other matching of G.
+#+end_quote
+
+#+begin_quote
+A /maximum matching/ is a matching that contains the largest possible number of edges.
+#+end_quote
+
+#+begin_quote
+A /perfect matching/ is a matching that contains all vertices of a graph.
+#+end_quote
+
+** Bipartite                                                      :bipartite:
+For bipartite graphs the problem can be solved using simpler algorithms than the general case.
+The transformation of the maximum matching problem to that of a flow problem is as follows:
+1. we add two new vertices s, t and edges from s to each node in X, from each node in Y to t. G=(X+Y, E).
+2. we assign edge capacity 1 to each edge of the graph.
+Now for a maximum flow from s to t, since at most 1 comes to each node in X, outgoing for each node in X is also 1. Similarly for each node in Y atmost one edge from X is on. Thus we have a matching.
+
+We can see that this transformation is bijective. Thus maximum flow gives the maximum matching.
+
+*** Ford-Fulkerson Method
+Writing the algorithm for a adjacency list representation of a graph started getting cumbersome. I will first try with adjacency matrix
+#+name: ford-fulkerson
+#+begin_src lisp
+(defun ffm (m)
+  "Maximum flow for the graph represented by the adjacency matrix M."
+  )
+#+end_src
+
+** Arbitrary Graphs
+
+*** Blossom Algorithm
+
+** Data Structures

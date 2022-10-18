@@ -1,0 +1,81 @@
+* Prefix Tree
+
+** Perl impl using hashes
+:PROPERTIES:
+:header-args: :noweb-ref perl-impl
+:END:
+#+begin_src perl
+sub find_string{
+    my ($str, $pt) = @_;
+    my @chars = split //, $str;
+    for(@chars){
+        if(defined $pt) { $pt = $pt->{$_}; }
+        else { return undef;}
+    }
+    return 1;
+};
+#+end_src
+
+#+begin_src perl
+sub add_string {
+    my ($str, $pt) = @_;
+    my @chars = split //, $str;
+    for(@chars){
+        if(defined $pt) {
+            if (!defined $pt->{$_}) {$pt->{$_} = {};}
+            $pt = $pt->{$_};
+        }
+        else {$pt = {$_ => {}}; $pt = $pt->{$_};}
+    }
+    $pt->{count} = defined $pt->{count} ? $pt->{count} + 1 : 1;
+}
+#+end_src
+
+** Testing
+#+begin_src perl :noweb strip-export :tangle yes :results output
+use strict;
+use Data::Dumper;
+<<perl-impl>>
+my $pt = {};
+my @words = ("raja", "raju", "rani", "rama", "ramu", "raghu");
+for(@words) { add_string($_, $pt); }
+print Dumper($pt);
+#+end_src
+
+#+RESULTS:
+#+begin_example
+$VAR1 = {
+          'r' => {
+                   'a' => {
+                            'n' => {
+                                     'i' => {
+                                              'count' => 1
+                                            }
+                                   },
+                            'j' => {
+                                     'a' => {
+                                              'count' => 1
+                                            },
+                                     'u' => {
+                                              'count' => 1
+                                            }
+                                   },
+                            'm' => {
+                                     'u' => {
+                                              'count' => 1
+                                            },
+                                     'a' => {
+                                              'count' => 1
+                                            }
+                                   },
+                            'g' => {
+                                     'h' => {
+                                              'u' => {
+                                                       'count' => 1
+                                                     }
+                                            }
+                                   }
+                          }
+                 }
+        };
+#+end_example

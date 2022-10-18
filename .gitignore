@@ -9,3 +9,5 @@ gmon.out
 *.gcda
 *.gcov
 *.gcno
+*.agdai
+*.dot

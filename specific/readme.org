@@ -1,0 +1,2 @@
+* Specific Algorithms
+The counter part to generic algorithms like sorting and searching. Narrow focus and applicable to small subset of problems.

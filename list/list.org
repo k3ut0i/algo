@@ -1,0 +1,45 @@
+* List Data Structure
+  I am using singly linked list but struggling to copy and change it every time the data type is changed. So I tried writing a macro which defines that.
+#+name: generic-list
+#+begin_src c
+#define DEFINE_LIST(name, type)                 \
+  typedef struct name{                          \
+    type car;                                   \
+    struct name* cdr;                           \
+  } *name##_t;                                  \
+  name##_t cons_##name(type car, name##_t cdr){ \
+    name##_t n = malloc(sizeof(*n));            \
+    n->car = car, n->cdr = cdr;                 \
+    return n;                                   \
+  }                                             \
+  void destroy_##name(name##_t l){              \
+    while(l != NULL){                           \
+      name##_t ln = l->cdr;                     \
+      free(l);                                  \
+      l = ln;                                   \
+    }                                           \
+  }                                             \
+#+end_src
+
+#+name: test-generic-list
+#+begin_src c :noweb yes :tangle test-generic-list.c
+#include<stdio.h>
+#include<stdlib.h>
+
+<<generic-list>>
+
+DEFINE_LIST(il, int); // Integer list named il_t
+
+int main(){
+  const int n = 10;
+  il_t l = NULL;
+  for(int i = 0; i < n; i++) l = cons_il(i, l);
+  const il_t lc = l;
+  while(l != NULL){
+    fprintf(stdout, "%d\n", l->car);
+    l = l->cdr;
+  }
+  destroy_il(lc);
+  return 0;
+}
+#+end_src

@@ -1,0 +1,80 @@
+* TODO Disjoint-set data structure
+https://en.wikipedia.org/wiki/Disjoint-set_data_structure
+
+** DSU
+
+The Structure contains just the parent pointer trees for now. Ideally there also should be a map of rank(or size) for each root of a set.
+#+name: dsu
+#+begin_src lisp
+(defstruct dsu
+  array)
+#+end_src
+
+After finding the root, I am re-iterating to set the parent of every node in that path to the root. This can be avoided if I recur ~dsu-find!~ and take advantage of sufficient stack size(as mentioned in wiki). There are also path-halving and splitting versions which I am avoiding for now.
+#+name: dsu-find
+#+begin_src lisp
+(defun dsu-find! (s e)
+  "Find the root of the element E in Disjoin-set union S.
+Also modifies S for effective find."
+  (declare (type dsu s))
+  (let* ((a (dsu-array s))
+         (root (do ((r e (aref a r)))
+                   ((= (aref a r) 0) r))))
+    (do ((r e))
+        ((= (aref a r) 0) root)
+      (let ((parent (aref a r)))
+        (setf (aref a r) root
+              r parent)))))
+
+#+end_src
+
+Ideally union should take into account the sizes of trees. Smaller one should be attached to larger to minimize tree heights. For now I am just using the smaller index. Since this union is a mutable operation, I am only returning tree merged to help debugging. Maybe returning the root of new tree is a better idea. It would probably be more useful.
+#+name: dsu-union
+#+begin_src lisp
+(defun dsu-union! (s e1 e2)
+  (declare (type dsu s))
+  "In S Merge the sets which contain E1 and E2."
+  (let ((r1 (dsu-find! s e1))
+        (r2 (dsu-find! s e2)))
+    (cond ((= r1 r2) :equal)
+          ((< r1 r2) (setf (aref s r2) r1) :left)
+          ((> r1 r2) (setf (aref s r1) r2) :right))))
+#+end_src
+
+** Graph Data Structure
+An adjacency list representation of a graph.
+- the nodes are labeled 1..n and the edges 1..m
+- the set of nodes is stored as an array of length (n+1), where the adjacency list of node ~i~ is stored at index i. So the 0th index will not be used. I could have just used a hash table for each node(where any kind of label can be used), but to keep my model constant between different programming languages(C, Haskell) this will do.
+#+name: graph
+#+begin_src lisp
+(defstruct graph
+  (nnodes 0 :type fixnum)
+  adjacency-list)
+
+(defun create-graph (n edge-list)
+  "Create a undirected graph of N nodes as a sequence of edges EDGE-LIST"
+  (let ((a (make-array (1+ n) :element-type 'list :initial-element nil)))
+    (flet ((f (edge-count vertex-pair)
+             (destructuring-bind (v1 v2) vertex-pair
+               (setf (aref a v1) (cons (list v2 edge-count) (aref a v1))
+                     (aref a v2) (cons (list v1 edge-count) (aref a v2))))
+             (1+ edge-count)))
+      (reduce #'f edge-list :initial-value 1)
+      a)))
+#+end_src
+
+#+RESULTS: graph
+: CREATE-GRAPH
+
+** Testing
+#+name: test-connectivity
+#+begin_src lisp
+(defun read-graph (in-stream)
+  (let ((n (read))
+        (m (read))
+        edges)
+    (dotimes (i m edges)
+      (setf edges (cons (read-edge) edges)))))
+#+end_src
+
+** C - implementation

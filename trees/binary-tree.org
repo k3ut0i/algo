@@ -1,0 +1,60 @@
+* Binary Tree
+- Note taken on [2022-05-01 Sun 20:49] \\
+  Knuth, Donald 1997 The Art of Computer Programming: 2.3.1 Traversing Binary Trees
+** Data Structure
+#+name: binary-tree-ds
+#+begin_src c
+struct binary_tree{
+  int data;
+  struct binary_tree* llink;
+  struct binary_tree* rlink;
+};
+
+typedef struct binary_tree *bt_t;
+#+end_src
+
+** Util
+#+name: list-macro
+#+begin_src c
+#define DEFINE_LIST(name, type)                 \
+  typedef struct name{                          \
+    type car;                                   \
+    struct name* cdr;                           \
+  } *name##_t;                                  \
+  name##_t cons_##name(type car, name##_t cdr){ \
+    name##_t n = malloc(sizeof(*n));            \
+    n->car = car, n->cdr = cdr;                 \
+    return n;                                   \
+  }                                             \
+  void destroy_##name(name##_t l){              \
+    while(l != NULL){                           \
+      name##_t ln = l->cdr;                     \
+      free(l);                                  \
+      l = ln;                                   \
+    }                                           \
+  }                                             \
+ 
+#+end_src
+
+** Traversal
+#+name: binary-tree-inorder
+#+begin_src c :noweb strip-export
+<<list-macro>>
+<<binary-tree-ds>>
+DEFINE_LIST(bt_stack, bt_t);
+
+#define POP_STACK(S, X) X = S->car, SOld = S, S = S->cdr; free(SOld)
+#define PUSH_STACK(S, X) SN = cons(X, S), S = SN
+
+il_t bt_inorder(bt_t t){
+  bt_stack_t a = cons(t, NULL);
+  while(a != NULL){
+    POP_STACK(a, p);
+    while(p != NULL){
+      
+    }
+  }
+}
+#+end_src
+
+
