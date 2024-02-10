@@ -1,0 +1,26 @@
+* Chinese Remainder Theorem
+https://en.wikipedia.org/wiki/Chinese_remainder_theorem
+I'm using the method from constructive proof in wiki.
+
+#+begin_src lisp :tangle tt_crt.lisp :exports both
+(defun c/2 (n1 a1 n2 a2)
+  "solution to x=A1(mod N1), x=A2(mod N2)."
+  (destructuring-bind (gcd (m1 m2))
+      (euclid-gcd-bezout n1 n2)
+    (declare (ignore gcd))
+    (mod (+ (* a1 m2 n2) (* a2 m1 n1)) (* n1 n2))))
+#+end_src
+
+
+#+begin_src lisp :tangle tt_crt.lisp :exports both
+(defun crt (ns as)
+  "Chinese remainder theorem: NS are divisors, AS are remainders."
+  (do ((ds ns) (rs as))
+      ((null (cddr ds)) (list ds rs))
+    (let ((n1 (car ds))
+          (a1 (car rs))
+          (n2 (cadr ds))
+          (a2 (cadr rs)))
+      (setf ds (cons (* n1 n2) (cddr ds))
+            rs (cons (c/2 n1 a1 n2 a2) (cddr rs))))))
+#+end_src

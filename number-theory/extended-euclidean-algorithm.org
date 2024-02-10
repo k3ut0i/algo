@@ -1,0 +1,27 @@
+* Extended Euclidean Algorithm
+https://en.wikipedia.org/wiki/Extended_Euclidean_algorithm
+#+begin_quote
+the extended Euclidean algorithm is an extension to the Euclidean algorithm, and computes, in addition to the greatest common divisor (gcd) of integers a and b, also the coefficients of Bézout's identity, which are integers x and y such that
+    ax + by = gcd(a,b)
+#+end_quote
+
+#+begin_quote
+The extended Euclidean algorithm is particularly useful when a and b are coprime. With that provision, x is the modular multiplicative inverse of _a modulo b_, and y is the modular multiplicative inverse of _b modulo a_.
+#+end_quote
+
+** Lisp Implementation
+#+begin_src lisp :tangle tt_ee.lisp :exports both 
+(defun euclid-gcd-bezout (a b)
+  "return (gcd(A,B) X Y) such that AX+BY=gcd(A,B)."
+  (declare (type integer a b))
+  (do ((m1 a) (m2 b)
+       (x0 1) (y0 0)
+       (x1 0) (y1 1))
+      ((zerop (mod m1 m2)) (list (truncate m1 m2) (list x1 y1)))
+    (psetf m1 m2
+           m2 (mod m1 m2)
+           x0 x1
+           y0 y1
+           x1 (- x0 (* x1 (truncate m1 m2)))    ;; Will this work with A, B < 0?
+           y1 (- y0 (* y1 (truncate m1 m2))))))
+#+end_src

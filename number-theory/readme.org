@@ -1,0 +1,4 @@
+* Number-Theoretic Algorithms
+- [X] Linear Sieve to get all prime number and their prime factors. in ../linear-sieve
+  + I have to add some helper functions to get all prime factors, current one only has smallest prime factor of each number.
+- [X] Chinese Remainder Theorem
