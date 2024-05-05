@@ -282,3 +282,123 @@ import Test.QuickCheck
 <<hs-heap-st>>
 <<test-fn>>
 #+end_src
+
+*** TODO Lisp - Implementation
+
+#+name: lisp-datatype
+#+begin_src lisp
+(defstruct heap array size cmp-fn)
+(defun left-index (i) (+ 1 (* 2 i)))
+(defun right-index (i) (+ 2 (* 2 i)))
+(defun parent-index (i) (floor (1- i) 2))
+#+end_src
+
+The upperbound of the size is fixed. This can be changed but the added complexity is not worth it for our CP uses.
+#+name: lisp-util
+#+begin_src lisp
+(defun init-max-heap (ub)
+  (make-heap :array (make-array ub)
+             :size 0
+             :cmp-fn #'>=))
+
+(defun init-min-heap (ub)
+  (make-heap :array (make-array ub)
+             :size 0
+             :cmp-fn #'<=))
+
+(defun heap-swap (h i j)
+  (let* ((a (heap-array h))
+         (ie (aref a i))
+         (je (aref a j)))
+    (setf (aref a i) je
+          (aref a j) ie)))
+
+(defun heap-ref (h i)
+  (aref (heap-array h) i))
+#+end_src
+
+Now, onto the essential heap operations.
+Upheap for insertions.
+#+name: lisp-upheap
+#+begin_src lisp
+(defun upheap (h i)
+  (unless (zerop i)
+    (let* ((e (heap-ref h i))
+           (p-i (parent-index i))
+           (p-e (heap-ref h p-i)))
+      (when (funcall (heap-cmp-fn h) e p-e)
+        (heap-swap h i p-i)
+        (upheap h p-i)))))
+#+end_src
+
+Downheap for extractions.
+#+name: lisp-downheap
+#+begin_src lisp
+(defun downheap (h i)
+  (when (< i (heap-size h))
+    (let ((li (left-index i))
+          (ri (right-index i))
+          (e (heap-ref h i)))
+      (if (< ri (heap-size h))
+          (let ((le (heap-ref h li))
+                (re (heap-ref h ri)))
+            (let ((c-p-l (funcall (heap-cmp-fn h) e le))
+                  (c-p-r (funcall (heap-cmp-fn h) e re))
+                  (c-l-r (funcall (heap-cmp-fn h) le re)))
+              (cond ((or (and (not c-p-l) (not c-p-r) c-l-r)
+                         (and (not c-p-l) c-p-r))
+                     (heap-swap h i li)
+                     (downheap h li))
+                    ((or (and (not c-p-l) (not c-p-r) (not c-l-r))
+                         (and c-p-l (not c-p-r)))
+                     (heap-swap h i ri)
+                     (downheap h ri)))))
+          (when (and (< li (heap-size h)) (funcall (heap-cmp-fn h)
+                                                   (heap-ref h li)
+                                                   e))
+            (heap-swap h i li))))))
+#+end_src
+
+Now the external api.
+#+name: lisp-api
+#+begin_src lisp
+(defun insert (e h)
+  (setf (aref (heap-array h) (heap-size h)) e
+        (heap-size h) (1+ (heap-size h)))
+  (upheap h (1- (heap-size h))))
+
+(defun extract (h)
+  (if (zerop (heap-size h))
+      nil
+      (prog1 (heap-ref h 0)
+        (setf (aref (heap-array h) 0) (aref (heap-array h) (1- (heap-size h)))
+              (heap-size h) (1- (heap-size h)))
+        (downheap h 0))))
+#+end_src
+
+**** TODO Testing
+#+begin_src lisp :noweb strip-export :tangle test-binary-heap.lisp
+<<lisp-datatype>>
+<<lisp-util>>
+<<lisp-upheap>>
+<<lisp-downheap>>
+<<lisp-api>>
+(defun heapsort (as)
+  (let ((h (init-max-heap (* 2 (length as)))))
+    (loop :for e :in as
+          :do (insert e h))
+    (do ((empty nil)
+         (sorted-as nil))
+        (empty sorted-as)
+      (let ((e (extract h)))
+        (if e
+            (push e sorted-as)
+            (setf empty t))))))
+
+(defun main ()
+  (let* ((as (loop :for i :from 0 :below 100 :collect (random 1000)))
+         (hs (heapsort as)))
+    (format t "~A~%~A~%~A~%~A~%" (length as) (sort as #'<=) (length hs) hs)))
+
+#-swank (main)
+#+end_src

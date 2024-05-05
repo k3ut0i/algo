@@ -1,47 +1,65 @@
 * TODO Disjoint-set data structure
 https://en.wikipedia.org/wiki/Disjoint-set_data_structure
 
-** DSU
-
-The Structure contains just the parent pointer trees for now. Ideally there also should be a map of rank(or size) for each root of a set.
+** TODO DSU
+- I'm using a hash-table to represent the trees.
+- each node is mapped to a pair (parent, tree-size).
+- thus the initial values for any node are (node, 1).
 #+name: dsu
 #+begin_src lisp
-(defstruct dsu
-  array)
+(defun dsu/create (as)
+  (let ((h (make-hash-table)))
+    (loop :for e :in as
+          :do (setf (gethash e h) (cons e 1))
+          :finally (return h))))
+
+(defun dsu/parent (e s) (car (gethash e s)))
+(defun dsu/size (e s) (cdr (gethash e s)))
+(defun dsu/isroot (e s &optional (test #'eq)) (funcall test e (dsu/parent e s)))
+(defun dsu/setparentsize! (e ps s) (setf (gethash e s) ps))
+
+(defun dsu/dump (s)
+  (maphash (lambda (k parent-size)
+             (format t "~A[~A] -> ~A~%" k (cdr parent-size) (car parent-size)))
+           s))
 #+end_src
 
 After finding the root, I am re-iterating to set the parent of every node in that path to the root. This can be avoided if I recur ~dsu-find!~ and take advantage of sufficient stack size(as mentioned in wiki). There are also path-halving and splitting versions which I am avoiding for now.
 #+name: dsu-find
 #+begin_src lisp
-(defun dsu-find! (s e)
+(defun dsu/find! (s e &optional (test #'eq))
   "Find the root of the element E in Disjoin-set union S.
 Also modifies S for effective find."
-  (declare (type dsu s))
-  (let* ((a (dsu-array s))
-         (root (do ((r e (aref a r)))
-                   ((= (aref a r) 0) r))))
-    (do ((r e))
-        ((= (aref a r) 0) root)
-      (let ((parent (aref a r)))
-        (setf (aref a r) root
-              r parent)))))
-
+  (let* ((root (do ((r e (dsu/parent r s)))
+                   ((dsu/isroot r s test) r))))
+    (do ((r (dsu/parent e s)))
+        ((dsu/isroot r s test) root)
+      (let ((parent (dsu/parent r s)))
+        (dsu/setparentsize! r (cons root 1) s)
+        (setf r parent)))))
 #+end_src
 
 Ideally union should take into account the sizes of trees. Smaller one should be attached to larger to minimize tree heights. For now I am just using the smaller index. Since this union is a mutable operation, I am only returning tree merged to help debugging. Maybe returning the root of new tree is a better idea. It would probably be more useful.
 #+name: dsu-union
 #+begin_src lisp
-(defun dsu-union! (s e1 e2)
-  (declare (type dsu s))
+(defun dsu/union! (s e1 e2)
   "In S Merge the sets which contain E1 and E2."
-  (let ((r1 (dsu-find! s e1))
-        (r2 (dsu-find! s e2)))
+  (let* ((r1 (dsu/find! s e1))
+         (r2 (dsu/find! s e2))
+         (s1 (dsu/size r1 s))
+         (s2 (dsu/size r2 s)))
     (cond ((= r1 r2) :equal)
-          ((< r1 r2) (setf (aref s r2) r1) :left)
-          ((> r1 r2) (setf (aref s r1) r2) :right))))
+          ((<= s1 s2)
+           (dsu/setparentsize! r1 (cons r2 s1) s)
+           (dsu/setparentsize! r2 (cons r2 (+ s1 s2)) s)
+           :left)
+          ((> s1 s2)
+           (dsu/setparentsize! r2 (cons r1 s2) s)
+           (dsu/setparentsize! r1 (cons r1 (+ s1 s2)) s)
+           :right))))
 #+end_src
 
-** Graph Data Structure
+*** Graph Data Structure
 An adjacency list representation of a graph.
 - the nodes are labeled 1..n and the edges 1..m
 - the set of nodes is stored as an array of length (n+1), where the adjacency list of node ~i~ is stored at index i. So the 0th index will not be used. I could have just used a hash table for each node(where any kind of label can be used), but to keep my model constant between different programming languages(C, Haskell) this will do.
@@ -66,15 +84,164 @@ An adjacency list representation of a graph.
 #+RESULTS: graph
 : CREATE-GRAPH
 
-** Testing
+*** Testing
 #+name: test-connectivity
-#+begin_src lisp
-(defun read-graph (in-stream)
-  (let ((n (read))
-        (m (read))
-        edges)
-    (dotimes (i m edges)
-      (setf edges (cons (read-edge) edges)))))
+#+begin_src lisp :noweb strip-export :tangle test-dsu.lisp
+<<dsu>>
+<<dsu-find>>
+<<dsu-union>>
 #+end_src
 
-** C - implementation
+
+** TODO Haskell - implementation
+We are representing each set as a tree. A disjoint set of sets is a forrest. Each set is represented as a parent pointer tree. Two elements belong to the same set, if they have the same root in the forrest.
+*** DONE Mutable Unboxed Integer Array
+#+begin_src haskell
+{-# LANGUAGE Safe #-}
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
+module DSU where
+
+import Data.Array.ST.Safe (STUArray, MArray)
+import qualified Data.Array.ST.Safe as A
+import Control.Monad.ST
+import Data.Ix (Ix, range)
+import Control.Monad (foldM)
+import Data.Array.IArray(IArray, Array)
+import qualified Data.Array.IArray as IA
+
+{- These for components -}
+import qualified Data.IntSet as IS
+import Data.List (foldl')
+import qualified Data.IntMap.Strict as IM
+
+{- START: DSU unboxed mutable state array version -}
+-- _a_ can be any sized Int's, Words's, and Char
+type DSU s a = STUArray s a a 
+
+parent :: (MArray (STUArray s) a (ST s), Ix a) => a -> DSU s a -> ST s a
+parent x d = A.readArray d x
+
+root :: (MArray (STUArray s) a (ST s), Ix a) => a -> DSU s a -> ST s a
+root x d = parent x d >>= \p -> if x == p
+                                then pure p
+                                else root p d
+
+setroot i r m = parent i m >>=
+                \p -> if p /= r
+                      then A.writeArray m i r >>
+                           setroot p r m
+                      else pure m
+
+initDSU :: (MArray (STUArray s) a (ST s), Ix a) => (a, a) -> ST s (DSU s a)
+initDSU bs = A.newListArray bs (range bs)
+
+union :: (MArray (STUArray s) a (ST s), Ix a) => a -> a -> DSU s a -> ST s (DSU s a)
+union p1 p2 d = do r1 <- root p1 d
+                   r2 <- root p2 d
+                   case compare r1 r2 of -- smallest index is the root
+                     EQ ->  pure d
+                     LT -> setroot p2 r1 d >>= setroot r2 r1
+                     GT -> setroot p1 r2 d >>= setroot r1 r2
+
+fromEdges :: (MArray (STUArray s) a (ST s), Ix a) =>
+             (a, a) -> [(a, a)] -> ST s (STUArray s a a)
+fromEdges bs edges = initDSU bs >>= \d -> foldM f d edges
+  where f d (i, j) = union i j d
+
+fromEdgesFreezed :: (IArray b a, MArray (STUArray s) a (ST s), Ix a) =>
+                    (a, a) -> [(a, a)] -> ST s (b a a)
+fromEdgesFreezed bs edges = fromEdges bs edges >>= A.freeze
+
+numComponents :: (Int, Int) -> [(Int, Int)] -> Int
+numComponents bs edges = let  !d = runST (fromEdgesFreezed bs edges) :: Array Int Int
+                              count = foldl' (flip IS.insert) IS.empty
+                              aroot i = if i == (d IA.!i) then i else aroot (d IA.!i)
+                         in
+                           IS.size . count $ [aroot i | i <- range bs]
+
+components :: (Int, Int) -> [(Int, Int)] -> IM.IntMap IS.IntSet
+components bs edges =
+  let  !d = runST (fromEdgesFreezed bs edges) :: Array Int Int
+       aroot i = if i == (d IA.!i) then i else aroot (d IA.!i)
+       f mp (i, r) = IM.insert r (IS.insert i (IM.findWithDefault IS.empty r mp)) mp
+  in
+    foldl' f IM.empty [(i, aroot i) | i <- range bs]
+
+{- END: DSU unboxed mutable state array version -}
+
+#+end_src
+
+*** DONE Immutable Map version
+:PROPERTIES:
+:header-args: :noweb-ref haskell-dsu
+:END:
+Imports
+#+begin_src haskell
+import Data.Map (Map(..), insert, (!), empty)
+import Data.List (foldl')
+#+end_src
+
+Here we are using the ~Map~ data structure, but if the elements are integers, then ~IntMap~ would be a better choice.
+#+begin_src haskell
+type DSU a = Map a a
+setparent :: (Ord a) => a -> a -> DSU a -> DSU a
+setparent = insert
+#+end_src
+
+Create with all elements being singleton sets mutually disjoint.
+#+begin_src haskell
+createDisjoint :: (Ord a) => [a] -> DSU a
+createDisjoint = foldl' f empty
+  where f m a = setparent a a m
+#+end_src
+
+Finding and changing the root.
+- iterate up untill the parent of a node is the node itself.
+- when setting a root of a node, we also set roots of all the ancestors of the node.
+- We could also make the root operation mutable and reduce the height of the tree with each root finding.
+#+begin_src haskell
+root :: (Ord a) => a -> DSU a -> a
+root x d = iterateMaybe (f d) x
+  where iterateMaybe g x = case g x of
+                             Nothing -> x
+                             Just y -> iterateMaybe g y
+        f d x = if x == d!x
+                then Nothing
+                else Just (d!x)
+
+setroot :: (Ord a) => a -> a -> DSU a -> DSU a
+setroot x r d | x == (d!x) = setparent x r d
+              | otherwise = setroot (d!x) r (setparent x r d)
+#+end_src
+
+Combining sets which contain two elements.
+- change the roots of each element so that one of them points to the other.
+- If it was a mutable operation, we can change the height of trees in the root-find-part
+- Also if _DSU_ supported tree sizes, then we can make sure to attach smaller tree to the bigger one.
+#+begin_src haskell
+union :: (Ord a) => a -> a -> DSU a -> DSU a
+union x y d = let rx = root x d
+                  ry = root y d
+              in if rx == ry
+                 then d
+                 else setroot ry rx d
+#+end_src
+
+Construct a disjoint-set of connected nodes, given a node and edge list of an undirected graph.
+#+begin_src haskell
+components :: (Ord a) => [a] -> [(a, a)] -> DSU a
+components nodes edges = foldl' f (createDisjoint nodes) edges
+  where f d (x, y) = union x y d
+#+end_src
+
+*** Testing
+#+begin_src haskell :tangle haskell-dsu-test.hs :noweb yes
+<<haskell-dsu>>
+main = let n = 10
+           es = [ (1, 2), (2, 3), (3, 4), (4, 5), (6, 7), (7, 8), (8, 9), (9, 10)]
+       in
+         print (components [1..n] es)
+
+#+end_src
+
+** TODO C - implementation

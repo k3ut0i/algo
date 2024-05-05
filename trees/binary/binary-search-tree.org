@@ -1,5 +1,5 @@
 * Binary Search Tree
-** Haskell
+** Haskell - Implementation
 - Note taken on [2024-04-15 Mon 15:48] \\
   completed and checked the essential operations
 - Note taken on [2022-05-04 Wed 22:07] \\
@@ -232,3 +232,309 @@ testDelete xs = let ss = sort (nub xs)
                 in
                   f t ss
 #+end_src
+
+
+
+** DONE DSW - Balancing Algorithm
+[[https://en.wikipedia.org/wiki/Day%E2%80%93Stout%E2%80%93Warren_algorithm][Day-Stout-Warren Algorithm]]
+- Note taken on [2024-04-19 Fri 11:39] \\
+  Tree Rebalancing in Optimal Time and Space - Quentin F. Stout, Bette L. Warren 1986
+
+
+1. First we create a vine from the tree
+   + A vine is essentially a linked list; all left nodes are nil, all right nodes are successors.
+2. We create a tree from the vine.
+   + we do a series of compressions on the vine until, the optimal size spine size is reached.
+
+#+name: tree2vine
+#+begin_src haskell
+t2v :: BTree a -> BTree a
+t2v Nil = Nil
+t2v (BTree v Nil r) = BTree v Nil (t2v r)
+t2v (BTree v (BTree x l1 r1) r) = t2v (BTree x l1 (BTree v r1 r))
+#+end_src
+
+#+name: test-tree2vine
+#+begin_src haskell
+test_t2v :: [Int] -> Bool
+test_t2v as = let t = createBTree as
+                  s = inOrder t
+                  createVine = foldr (\x -> BTree x Nil) Nil
+              in t2v t == createVine s
+#+end_src
+
+#+name: compress
+#+begin_src haskell
+compress :: BTree a -> BTree a
+compress Nil = Nil
+compress t@(BTree x l Nil) = t
+compress (BTree x l (BTree y l1 r1)) = BTree y (BTree x l l1) (compress r1)
+#+end_src
+
+How many times do I apply _compress_?
+#+name: vine2tree
+#+begin_src haskell
+rightlen :: BTree a -> Int
+rightlen = f 0
+  where f x Nil = x
+        f x (BTree _ _ r) = f (x+1) r
+
+leftlen :: BTree a -> Int
+leftlen = f 0
+  where f x Nil = x
+        f x (BTree _ l _) = f (x+1) l
+
+v2t :: BTree a -> BTree a
+v2t Nil = Nil
+v2t t | leftlen t == rightlen t = t
+      | otherwise = v2t (compress t)
+
+v2t' :: Int -> BTree a -> BTree a
+v2t' x t | x < 2 = t
+         |otherwise = v2t' (div x 2) (compress t)
+#+end_src
+
+#+name: test-vine2tree
+#+begin_src haskell
+test_v2t :: [Int] -> IO ()
+test_v2t = putStr . pshow . v2t . t2v . createBTree
+
+test_v2t' :: [Int] -> IO ()
+test_v2t' xs = putStr . pshow . v2t' n . t2v . createBTree $ xs
+  where n = length xs
+#+end_src
+
+#+name: test-dsw-main
+#+begin_src haskell :noweb strip-export :tangle test-dsw.hs
+import Data.List (nub, sort, foldl')
+import Test.QuickCheck
+import Data.Maybe (fromJust)
+
+main :: IO ()
+main = quickCheck test_t2v >>
+       (putStr . pshow . createBTree) [4, 2, 9, 3, 1, 0, 5, 7, 8, 6] >>
+       test_v2t [4, 2, 9, 3, 1, 0, 5, 7, 8, 6] >>
+       test_v2t' [4, 2, 9, 3, 1, 0, 5, 7, 8, 6]
+<<btree-hs>>
+<<tree2vine>>
+<<test-tree2vine>>
+<<compress>>
+<<vine2tree>>
+<<test-vine2tree>>
+<<btree-pp>>
+#+end_src
+
+** TODO Lisp - Implementation
+Basic data type is a improper list with ~(val left . right)~
+#+name: basic-ops
+#+begin_src lisp
+(defun bst/value (bst) (car bst))
+(defun bst/left (bst) (cadr bst))
+(defun bst/right (bst) (cddr bst))
+#+end_src
+Insertion
+#+name: insert
+#+begin_src lisp
+(defun bst/insert (x tree &optional (cmp-fn #'<))
+  (with-tree tree
+    (list x nil)
+    (case (compare x v cmp-fn)
+      (eq tree)
+      (lt `(,v ,(bst/insert x l) . ,r))
+      (gt `(,v ,l . ,(bst/insert x r))))))
+#+end_src
+
+In the ~with-tree~ macro, the variables v, l, r are bound within the macro. This could be source of many bugs. A better way would be to use binary-case as a function with three variables v, l and, r.
+#+name: helpers
+#+begin_src lisp
+(defun compare (x y &optional (cmp-fn #'<))
+  (cond ((funcall cmp-fn x y) 'lt)
+        ((funcall cmp-fn y x) 'gt)
+        (t 'eq)))
+
+(defmacro with-tree (tree nil-case binary-case)
+  `(if (null ,tree)
+       ,nil-case
+       (destructuring-bind (v l . r) ,tree
+           ,binary-case)))
+
+(defun bst/setchild (val dir subtree tree &optional (cmp-fn #'<))
+  (with-tree tree
+    nil
+    (case (compare val v cmp-fn)
+      (eq (if (eq dir :left)
+              (setf (cadr tree) subtree)
+              (setf (caddr tree) subtree)))
+      (lt (bst/setchild val dir subtree l))
+      (gt (bst/setchild val dir subtree r)))))
+
+(defun bst/replace-value (oldval newval tree &optional (cmp-fn #'<))
+  (with-tree tree
+    nil
+    (case (compare oldval v cmp-fn)
+      (eq `(,newval ,l ,r))
+      (lt `(,v ,(bst/replace-value oldval newval l) ,r))
+      (gt `(,v ,l ,(bst/replace-value oldval newval r))))))
+#+end_src
+
+#+name: utilities
+#+begin_src lisp
+(defun bst/create (ls &optional (cmp-fn #'<))
+  (reduce (lambda (acc v) (bst/insert v acc cmp-fn)) ls :initial-value nil))
+
+(defun bst/inorder (b)
+  (with-tree b
+    nil
+    (nconc (bst/inorder l) (cons v (bst/inorder r)))))
+
+(defun bst/sort (ls &optional (cmp-fn #'<))
+  (bst/inorder (bst/create ls cmp-fn)))
+#+end_src
+
+The smallest and largest elements of a tree.
+- keep taking the left branch for smallest
+- keep taking the right branch for largest
+
+#+name: min-max
+#+begin_src lisp
+(defun bst/min (tree)
+  (with-tree tree
+    nil
+    (loop :with n = v :and nl = l
+          :if (null nl)
+            :do (return n)
+          :else
+            :do (destructuring-bind (v1 l1 . r1) nl
+                  (declare (ignore r1))
+                  (setf n v1
+                        nl l1)))))
+
+(defun bst/max (tree)
+  (with-tree tree
+    nil
+    (loop :with n = v :and nr = r
+          :if (null nr)
+            :do (return n)
+          :else
+            :do (destructuring-bind (v1 l1 . r1) nr
+                  (declare (ignore l1))
+                  (setf n v1
+                        nr r1)))))
+#+end_src
+
+#+name: pred-succ
+#+begin_src lisp
+(defun find-parent (ptype path)
+  (car (find ptype path :key #'cdr)))
+
+(defun bst/succ (x tree)
+  (destructuring-bind (path xtree) (bst/find x tree)
+    (with-tree xtree
+      nil
+      (if (null r)
+          (find-parent :left path)
+          (bst/min r)))))
+
+(defun bst/pred (x tree)
+  (destructuring-bind (path xtree) (bst/find x tree)
+    (with-tree xtree
+      nil
+      (if (null l)
+          (find-parent :right path)
+          (bst/max l)))))
+#+end_src
+
+#+name: find
+#+begin_src lisp
+(defun bst/find (x tree &optional (cmp-fn #'<) (acc nil))
+  (with-tree tree
+    (list nil acc)
+    (case (compare x v cmp-fn)
+      (eq (list acc tree))
+      (lt (bst/find x l cmp-fn (cons (cons v :left) acc)))
+      (gt (bst/find x r cmp-fn (cons (cons v :right) acc))))))
+#+end_src
+
+The return value is the tree from which is the element is deleted. The tree might be destructed in the process. This is very messy, I had no idea it would work until I ran many random trials. Needs a better way to this.
+#+name: deletion
+#+begin_src lisp
+(defun bst/delete (x tree &optional (cmp-fn #'<))
+  (flet ((sc (node dir val)
+           (bst/setchild node dir val tree cmp-fn)))
+    (destructuring-bind (path xtree)
+        (bst/find x tree)
+      (with-tree xtree
+        nil
+        (cond ((and (null l) (null r) (null path)) (setf tree nil))
+              ((and (null l) (null r)) (sc (caar path) (cdar path) nil))
+              ((and (null l) (null path)) (setf tree r))
+              ((and (null r) (null path)) (setf tree l))
+              ((null l) (sc (caar path) (cdar path) r))
+              ((null r) (sc (caar path) (cdar path) l))
+              (t (destructuring-bind (v1 l1 . r1) r
+                   (if (null l1)
+                       (progn (sc x :right r1)
+                              (bst/replace-value x v1 tree))
+                       (loop :with node = l1 :and parent = r
+                             :until (null (bst/left node))
+                             :do (setf parent node
+                                       node (bst/left node))
+                             :finally (progn (sc parent :left nil)
+                                             (sc parent :right (bst/right node))
+                                             (bst/replace-value x (bst/value node)
+                                                                tree))))))))
+      tree)))
+#+end_src
+
+#+name: pretty-print
+#+begin_src lisp
+(defun bst/pp (tree &optional (indent-level 0))
+  (flet ((indent-string (lvl)
+           (make-string lvl :initial-element #\-)))
+    (with-tree tree
+      (format t "~A*~%" (indent-string indent-level))
+      (progn (format t "~A~A~%" (indent-string indent-level) v)
+             (bst/pp l (1+ indent-level))
+             (bst/pp r (1+ indent-level))))))
+#+end_src
+
+#+name: graphviz
+#+begin_src lisp
+(defun bst/graphviz (tree)
+  (flet ((f (tree)
+           (with-tree tree
+             nil
+             (format t "~A"))))))
+#+end_src
+
+#+name: bst-lib
+#+begin_src lisp :noweb strip-export
+<<helpers>>
+<<basic-ops>>
+<<insert>>
+<<utilities>>
+<<min-max>>
+<<find>>
+<<pretty-print>>
+<<pred-succ>>
+<<deletion>>
+#+end_src
+
+#+name: bst-test
+#+begin_src lisp :noweb strip-export :tangle test-bst.lisp
+<<bst-lib>>
+(defun main ()
+  (let* ((n 10)
+         (as (cons 0 (loop :with rs = (make-random-state t)
+                           :for i :from 0 :below n :collect (random 1000 rs))))
+         (bst (bst/create as #'<)))
+    (format t "~{~A~^ ~}~%" as)
+    (format t "~{~A~^ ~}~%" (bst/sort as))
+    (do ((t1 bst (bst/delete (bst/min t1) t1)))
+        ((null t1) (terpri))
+      (format t "~A " (bst/min t1))
+      (finish-output))))
+
+#-swank (main)
+#+end_src
+
